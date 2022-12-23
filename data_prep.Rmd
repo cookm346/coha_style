@@ -1,0 +1,45 @@
+---
+title: ''
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidytext)
+
+files <- list.files("data/text_2000s_scc/", full.names = TRUE)
+
+data <- tibble(file = files) %>%
+    mutate(text_type = basename(file),
+           text_type = str_extract(text_type, pattern = "[^_]+")) %>%
+    mutate(text = map_chr(file, ~ paste(read_lines(.x), collapse = " "))) %>%
+    unnest_tokens(word, "text")
+
+word_counts <- data %>%
+    filter( ! word %in% 0:100) %>%
+    filter(word != "n't") %>%
+    anti_join(stop_words, by = "word") %>%
+    count(text_type, word) %>% 
+    group_by(text_type) %>%
+    summarize(prop = n / sum(n),
+              word = word) %>%
+    ungroup()
+
+word_counts <- word_counts %>%
+    group_by(text_type) %>%
+    slice_max(prop, n = 5000) %>%
+    ungroup() %>%
+    pivot_wider(names_from = text_type, values_from = prop) %>% 
+    pivot_longer(-c(word, fic)) %>%
+    mutate(name = case_when(
+        name == "mag" ~ "Magazine",
+        name == "news" ~ "News",
+        name == "nf" ~ "Nonfiction"
+    ))
+
+write_csv(word_counts, "data/coha_2020_data.csv")
+```
